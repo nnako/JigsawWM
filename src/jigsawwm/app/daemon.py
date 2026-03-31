@@ -5,8 +5,10 @@ import os
 import signal
 import sys
 import traceback
+from enum import StrEnum
 from typing import Sequence
 
+from PySide6.QtCore import QObject, Signal
 from PySide6.QtGui import QAction, QIcon
 from PySide6.QtWidgets import QMenu, QSystemTrayIcon
 
@@ -60,8 +62,12 @@ else:
 
 logger = logging.getLogger(__name__)
 
+class MessageType(StrEnum):
+    INFO = "INFO"
+    ERROR = "ERROR"
+    WARNING = "WARNING"
 
-class Daemon:
+class Daemon(QObject):
     """JigsawWM Daemon: A singleton class that manages the tray icon and is responsible for starting and stopping jobs."""
 
     sysexcepthook: callable = None
@@ -71,8 +77,10 @@ class Daemon:
     jobs: Sequence[Job] = []
     jmk: JmkService
     wm: WmService
+    buble_message_signal = Signal(str, str, QSystemTrayIcon.MessageIcon)
 
     def __init__(self):
+        super().__init__()
         logger.info("Daemon initializing")
         script_dir = os.path.dirname(__file__)
         icon_path = os.path.join(script_dir, "..", "assets", "logo.png")
@@ -151,6 +159,7 @@ class Daemon:
         # self.trayicon.activated.connect(self.update_traymenu)
         self.trayicon.activated.connect(self.trayicon_activated)
         self.trayicon.show()
+        self.buble_message_signal.connect(self.trayicon.showMessage)
 
     def refresh_traymenu(self):
         """Refresh traymenu"""
@@ -207,3 +216,14 @@ class Daemon:
         logger.info("start message loop")
         self.create_trayicon()
         ui.app.exec()
+
+    
+    message_type_mapping =  {
+        MessageType.INFO: QSystemTrayIcon.MessageIcon.Information,
+        MessageType.ERROR: QSystemTrayIcon.MessageIcon.Critical,
+        MessageType.WARNING: QSystemTrayIcon.MessageIcon.Warning,
+    }
+
+    def show_buble_msg(self, title: str, message: str, msg_type: MessageType):
+        logger.info("showing buble msg: %s", title)
+        self.buble_message_signal.emit(title, message,self.message_type_mapping.get(msg_type))

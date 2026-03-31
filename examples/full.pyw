@@ -1,25 +1,27 @@
 """An example of setting up all features"""
 
+import logging
 import os
 import time
 from functools import partial
 
-from jigsawwm.app.daemon import Daemon
+log = logging.getLogger(__name__)
+
+import requests
+
+from jigsawwm.app.daemon import Daemon, MessageType
 from jigsawwm.app.job import ProcessService
 from jigsawwm.app.services import CaffeineService
 from jigsawwm.app.tasks import DailyWebsites, WorkdayAutoStart
 from jigsawwm.jmk.core import JmkKey, JmkTapHold, Vk
-from jigsawwm.jmk.jmk_service import (
-    ctrl_shift_w,
-    ctrl_w,
-    send_now,
-    send_now_compact,
-    send_today,
-    send_today_compact,
-)
+from jigsawwm.jmk.jmk_service import (ctrl_shift_w, ctrl_w, send_now,
+                                      send_now_compact, send_today,
+                                      send_today_compact)
+from jigsawwm.ui.app import clipboard_helper
 from jigsawwm.w32.sendinput import send_combination
 from jigsawwm.w32.vk import Vk, parse_combination
-from jigsawwm.w32.window import Window, get_foreground_window, minimize_active_window
+from jigsawwm.w32.window import (Window, get_foreground_window,
+                                 minimize_active_window)
 from jigsawwm.wm.config import WmRule
 from jigsawwm.wm.manager import WmConfig
 
@@ -110,12 +112,102 @@ def system_sleep():
     send_combination(Vk.U)
     send_combination(Vk.S)
 
+def call_llm(system_prompt: str, user_prompt: str):
+    # request OpenAI-compatible chat completion using the environment
+    # variables `OPENAI_URL` and `OPENAI_KEY`.
+    url = os.getenv("OPENAI_URL")
+    key = os.getenv("OPENAI_KEY")
+    model = os.getenv("OPENAI_MODEL", "deepseek/deepseek-v3.2-251201")
+    log.debug("call_llm: url=%s model=%s", url, model)
+    if not url or not key:
+        raise RuntimeError("OPENAI_URL and OPENAI_KEY environment variables must be set")
+
+    endpoint = url.rstrip("/") + "/chat/completions"
+    payload = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ],
+        "max_tokens": 512,
+        "temperature": float(os.getenv("OPENAI_TEMPERATURE", "0.2")),
+    }
+    headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
+
+    log.debug("call_llm: POST %s payload_size=%d", endpoint, len(str(payload)))
+    resp = requests.post(endpoint, json=payload, headers=headers, timeout=30)
+    log.debug("call_llm: response status=%d", resp.status_code)
+    resp.raise_for_status()
+    data = resp.json()
+    log.debug("call_llm: response data=%s", data)
+
+    # Support OpenAI ChatCompletion-style responses
+    if isinstance(data, dict) and "choices" in data and data["choices"]:
+        first = data["choices"][0]
+        if isinstance(first, dict):
+            if "message" in first and isinstance(first["message"], dict):
+                return first["message"].get("content", "")
+            if "text" in first:
+                return first.get("text", "")
+
+    # Fallback: return a best-effort string representation
+    log.warning("call_llm: unexpected response shape, returning str(data)")
+    return str(data)
+
+
+def _polish_selected_text_read(callback: callable, original: str):
+    # Runs on main thread with clipboard text in hand
+    log.info("_on_clipboard_read: clipboard text length=%d", len(original) if original else 0)
+    try:
+        if not original or not original.strip():
+            log.warning("_on_clipboard_read: no text selected or clipboard is empty")
+            daemon.show_buble_msg( "Polish Text", "No text selected or clipboard is empty.", MessageType.INFO)
+            return
+
+        system_prompt = (
+            "You are a helpful assistant. Polished the user's text: correct grammar, "
+            "improve clarity and conciseness while preserving meaning. Return only the polished text."
+        )
+
+        log.debug("_on_clipboard_read: calling LLM with %d chars", len(original))
+        daemon.show_buble_msg( "Polish Text", "Polishing text...", MessageType.INFO)
+        polished = call_llm(system_prompt, original)
+        log.debug("_on_clipboard_read: LLM returned %d chars", len(polished) if polished else 0)
+        if not polished:
+            log.warning("_on_clipboard_read: LLM returned no result")
+            # daemon.trayicon.showMessage(
+            #     "Polish Text", "LLM returned no result.", QSystemTrayIcon.MessageIcon.Warning
+            # )
+            return
+
+        clipboard_helper.set_text_async.emit(polished)
+        time.sleep(0.1)
+        if callback:
+            callback()
+        daemon.show_buble_msg("Polish Text", "Done")
+    except Exception as exc:
+        log.exception("_on_clipboard_read: unhandled exception: %s", exc)
+        daemon.show_buble_msg( "Polish Text", f"{type(exc).__name__}: {exc}", MessageType.ERROR)
+
+
+def polish_clipboard_text(callback: callable = None):
+    smart_copy_paste("copy")
+    clipboard_helper.get_text_async.emit(partial(_polish_selected_text_read, callback))
+
+def polish_selected_text():
+    log.debug("polish_selected_text: sending copy keystroke from hotkey thread")
+    # Read clipboard on main thread after a delay for the copy to complete
+    def callback():
+        time.sleep(0.1)
+        smart_copy_paste("paste")
+
 
 daemon.jmk.hotkeys.register_triggers(
     [
         ("Win+q", "LAlt+F4"),
         ("Win+s", "RCtrl+s"),
         ("Win+z", "RCtrl+z"),
+        ("Win+p", polish_selected_text),
         ("Win+c", partial(smart_copy_paste, "copy")),
         ("Win+v", partial(smart_copy_paste, "paste")),
         ("Win+Shift+v", "RWin+v"),
