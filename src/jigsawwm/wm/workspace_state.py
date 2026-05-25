@@ -220,7 +220,12 @@ class WorkspaceState:
             if window:
                 window.attrs[PREFERRED_WINDOW_INDEX] = i
         theme = self.theme
-        windows = list(w for w in self.tiling_windows if w and w.exists())
+        if theme.static_layout:
+            # Preserve empty slots so static_window_index keeps mapping to the
+            # same tiling area even when intermediate slots are unoccupied.
+            windows = list(self.tiling_windows)
+        else:
+            windows = [w for w in self.tiling_windows if w and w.exists()]
         # tile the first n windows
         n = len(windows)
         m = n
@@ -249,10 +254,11 @@ class WorkspaceState:
             self._stack_windows(work_rect, bound, windows, w=w, h=h)
         elif n == m and n > 0:
             w = windows[-1]
-            if w.handle == active_handle:
-                active_window, active_area = w, self.tiling_areas[-1]
-            else:
-                w.set_restricted_rect(self.tiling_areas[-1], work_rect)
+            if w is not None:
+                if w.handle == active_handle:
+                    active_window, active_area = w, self.tiling_areas[-1]
+                else:
+                    w.set_restricted_rect(self.tiling_areas[-1], work_rect)
         # bringing active window to the top
         if active_window and active_area:
             active_window.set_restricted_rect(active_area, work_rect)
