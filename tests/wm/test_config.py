@@ -1,28 +1,27 @@
 """Test wm.config module."""
 
-from jigsawwm.wm.config import WmRule, WmConfig
+from types import SimpleNamespace
+
+from jigsawwm.wm.config import WmConfig, WmRule
 
 
-def test_find_rule(mocker):
-    """Test find_rule"""
-    config = WmConfig()
-    config.rules = [
-        WmRule(exe_regex=r"\bWindowsTerminal\.exe$", manageable=False),
-        WmRule(title_regex=r"Windows Terminal", tilable=False),
-    ]
-    config.prepare()
-    window = mocker.Mock()
-    window.exe = None
-    window.title = None
-    assert config.find_rule_for_window(window) is None
+def test_find_rule_for_window_terminal_title_specificity():
+    """A title-specific rule should win before a generic exe-only fallback."""
+    config = WmConfig(
+        rules=[
+            WmRule(exe="WindowsTerminal.exe", title="nvim", static_window_index=0),
+            WmRule(exe="WindowsTerminal.exe", static_window_index=1),
+        ]
+    )
 
-    window.exe = "WindowsTerminal.exe"
-    r = config.find_rule_for_window(window)
-    assert r.manageable is False
-    assert r.tilable is None
+    nvim_window = SimpleNamespace(
+        exe=r"C:\Program Files\WindowsApps\WindowsTerminal.exe",
+        title="notes - nvim - Windows Terminal",
+    )
+    shell_window = SimpleNamespace(
+        exe=r"C:\Program Files\WindowsApps\WindowsTerminal.exe",
+        title="PowerShell - Windows Terminal",
+    )
 
-    window.exe = None
-    window.title = "Windows Terminal"
-    r = config.find_rule_for_window(window)
-    assert r.manageable is None
-    assert r.tilable is False
+    assert config.find_rule_for_window(nvim_window).static_window_index == 0
+    assert config.find_rule_for_window(shell_window).static_window_index == 1
