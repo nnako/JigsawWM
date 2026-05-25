@@ -154,6 +154,7 @@ class WorkspaceState:
         """ "Sort windows by static_index"""
         assert self.theme.max_tiling_areas > 1
         new_tiling_windows = [None] * self.theme.max_tiling_areas
+        overflow_windows = []
 
         for w in tiling_windows:
             if w is None:
@@ -161,12 +162,21 @@ class WorkspaceState:
             if STATIC_WINDOW_INDEX in w.attrs:
                 static_index = w.attrs[STATIC_WINDOW_INDEX]
                 assert static_index < self.theme.max_tiling_areas
-                assert (
-                    new_tiling_windows[static_index] is None
-                ), "static index duplicated"
+                if new_tiling_windows[static_index] is not None:
+                    logger.warning(
+                        "static index %s duplicated for %s and %s; "
+                        "keeping the first assignment and treating the later "
+                        "window as overflow",
+                        static_index,
+                        new_tiling_windows[static_index],
+                        w,
+                    )
+                    overflow_windows.append(w)
+                    continue
                 new_tiling_windows[static_index] = w
             else:
-                new_tiling_windows.append(w)
+                overflow_windows.append(w)
+        new_tiling_windows.extend(overflow_windows)
         logger.info("new_tiling_windows: %s", new_tiling_windows)
         return new_tiling_windows
 
