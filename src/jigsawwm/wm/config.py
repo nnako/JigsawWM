@@ -36,11 +36,9 @@ class WmRule:
         tilable: Optional[bool] = None,
     ):
         if exe:
-            self.exe_regex = self.parse_pattern(exe, exe_is_literal, exact=True)
+            self.exe_regex = self.parse_pattern(exe, exe_is_literal)
         if title:
-            # Literal titles are treated as case-insensitive substring matches,
-            # which is more practical for dynamic window titles.
-            self.title_regex = self.parse_pattern(title, title_is_literal, exact=False)
+            self.title_regex = self.parse_pattern(title, title_is_literal)
         self.exe_and_title = exe_and_title
         self.preferred_monitor_index = preferred_monitor_index
         self.preferred_workspace_index = preferred_workspace_index
@@ -49,12 +47,10 @@ class WmRule:
         self.tilable = tilable
 
     @staticmethod
-    def parse_pattern(pattern: str, literal: bool, exact: bool = True) -> re.Pattern:
+    def parse_pattern(pattern: str, literal: bool) -> re.Pattern:
         """Parse regex pattern"""
         if literal:
-            pattern = re.escape(pattern)
-            if exact:
-                pattern = r"\b" + pattern + r"$"
+            pattern = r"\b" + re.escape(pattern) + r"$"
         return re.compile(pattern, re.I)
 
     @staticmethod
