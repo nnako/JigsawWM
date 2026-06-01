@@ -148,7 +148,7 @@ def static_bigscreen_8(n: int) -> Iterator[FloatRect]:
     v1 = 0.30
     v2 = 0.45
 
-    # one window present
+    # number of windows as parameter
     if n == 1:
         yield 0.25, 0.37, 0.75, 1.00
     if n == 2:
@@ -185,14 +185,14 @@ def static_bigscreen_8(n: int) -> Iterator[FloatRect]:
         yield 0.00, 0.00, 0.25, 0.37
         yield 0.25, 0.00, 0.50, 0.37
     if n == 8:
-        yield 0.45, 0.37, 0.75, 0.80
-        yield 0.30, 0.80, 0.75, 1.00
-        yield 0.30, 0.37, 0.45, 0.80
-        yield 0.75, 0.00, 1.00, 1.00
-        yield 0.00, 0.37, 0.30, 1.00
-        yield 0.00, 0.00, 0.25, 0.37
-        yield 0.25, 0.00, 0.50, 0.37
-        yield 0.50, 0.00, 0.75, 0.37
+        yield 0.45, 0.37, 0.75, 0.86    # 0
+        yield 0.25, 0.86, 0.75, 1.00    # 1
+        yield 0.25, 0.37, 0.45, 0.86    # 2
+        yield 0.75, 0.00, 1.00, 1.00    # 3
+        yield 0.00, 0.37, 0.25, 1.00    # 4
+        yield 0.00, 0.00, 0.25, 0.37    # 5
+        yield 0.25, 0.00, 0.50, 0.37    # 6
+        yield 0.50, 0.00, 0.75, 0.37    # 7
 
 
 def widescreen_dwindle(n: int, master_ratio: float = 0.4) -> Iterator[FloatRect]:
