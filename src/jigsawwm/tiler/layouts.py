@@ -112,41 +112,80 @@ def static_bigscreen_8(n: int) -> Iterator[FloatRect]:
     """layout for a big screen (like a television) of 55 inches or more. here,
     the 'eye line' should define the upper (main) horizontal segregation. due
     to an attempt keep the eyes below it for main actions on the screen. the
-    screen will be optimal for 8 application windows. fewer windows might lead
-    to a different layout.
+    screen will be optimal for 8 application windows. if fewer windows were
+    activated, the respective areas stay empty.
 
     .. code-block:: text
 
-    +----------+----------+----------+----------+
-    |          |          |          |          |
-    |          |          |          |          |
-    |     6    |     7    |     8    |          |
-    |          |          |          |          |
-    |          |          |          |          |
-    +----------+--+-----+-+----------+          |
-    |             |     |            |          |
-    |             |     |            |          |
-    |             |     |            |          |
-    |             |     |            |     4    |
-    |             |  3  |      1     |          |
-    |     5       |     |            |          |
-    |             |     |            |          |
-    |             |     |            |          |
-    |             +-----+------------|          |
-    |             |                  |          |
-    |             |         2        |          |
-    +-------------+------------------+----------+
+---------    +----------+----------+----------+----------+
+ |  |  |     |          |          |          |          |
+ |  |  |     |          |          |          |          |
+ |  | <y1>   |     5    |     6    |     7    |          |
+ |  |  |     |          |          |          |          |
+ |  |  v     |          |          |          |          |
+ |  | ---    +----------+--------+-+----------+          |
+ |  |        |          |        |            |          |
+ |  |        |          |        |            |          |
+ |  |        |          |        |            |          |
+ |  |        |          |        |            |     3    |
+ |  |        |          |        |            |          |
+ | <y2>      |     4    |    2   |      0     |          |
+ |  |        |          |        |            |          |
+ |  v        |          |        |            |          |
+ | ---       |          +--------+------------|          |
+ |           |          |                     |          |
+ v           |          |          1          |          |
+--- 100%     +----------+---------------------+----------+
+
+             |-- <x1> ->|
+             |-- <x2> ---------->|
 
     :param n: total number of currently active windows
     :rtype: Iterator[FloatRect]
     """
 
-    # one single window fills the whole screen
-    l, t, r, b = 0.0, 0.0, 1.0, 1.0
-    h1 = 0.37
-    h2 = 0.80
-    v1 = 0.30
-    v2 = 0.45
+
+    #
+    # set location parameters for window placement
+    #
+
+    # fix parameters to localize windows. the parameters are chosen to optimize
+    # various aspects:
+    #
+    # - ability to create a shared screen area containing only of windows 0 and 2
+    # - realizing communication-related windows on the left side of the screen
+    # - realizing structure-related windows on the right side of the screen
+    # - realizing planning-related windows on the top of the screen
+    # - realizing windows for further info details on the bottom of the screen
+
+    y_min, x_min, y_max, x_max = 0.0, 0.0, 1.0, 1.0
+    y1 = 0.37 * 0.975
+    y2 = 0.86 * 0.975
+    x1 = 0.25
+    x2 = 0.45
+
+
+    #
+    # evaluate influence of task bar activity
+    #
+
+    # in order to keep window 0 and window 2 at exactly the same locations on
+    # the screen, regardless of the current task bar configuration, the y
+    # coordinates might be adjustes to alleviate usable screen size changes.
+    # the taskbar will reduce the maximum available vertical screen area by a
+    # certain value. in future releases, this value should be given by the user
+    # when choosing this layout. currently, it can only be changed within the
+    # code.
+
+    # _factor__remaining_screen_height = 0.975      # task bar active
+    _factor__remaining_screen_height = 1          # task bar inactive
+    y1 = y1 / _factor__remaining_screen_height
+    y2 = y2 / _factor__remaining_screen_height
+
+
+    #
+    # set coordinates of windows on the screen
+    #
 
     # number of windows as parameter
     if n == 1:
@@ -185,14 +224,14 @@ def static_bigscreen_8(n: int) -> Iterator[FloatRect]:
         yield 0.00, 0.00, 0.25, 0.37
         yield 0.25, 0.00, 0.50, 0.37
     if n == 8:
-        yield 0.45, 0.37, 0.75, 0.86    # 0
-        yield 0.25, 0.86, 0.75, 1.00    # 1
-        yield 0.25, 0.37, 0.45, 0.86    # 2
-        yield 0.75, 0.00, 1.00, 1.00    # 3
-        yield 0.00, 0.37, 0.25, 1.00    # 4
-        yield 0.00, 0.00, 0.25, 0.37    # 5
-        yield 0.25, 0.00, 0.50, 0.37    # 6
-        yield 0.50, 0.00, 0.75, 0.37    # 7
+        yield    x2,    y1,  3*x1,    y2    # 0
+        yield    x1,    y2,  3*x1, y_max    # 1
+        yield    x1,    y1,    x2,    y2    # 2
+        yield  3*x1, y_min, x_max, y_max    # 3
+        yield x_min,    y1,    x1, y_max    # 4
+        yield x_min, y_min,    x1,    y1    # 5
+        yield    x1, y_min,  2*x1,    y1    # 6
+        yield  2*x1, y_min,  3*x1,    y1    # 7
 
 
 def widescreen_dwindle(n: int, master_ratio: float = 0.4) -> Iterator[FloatRect]:
